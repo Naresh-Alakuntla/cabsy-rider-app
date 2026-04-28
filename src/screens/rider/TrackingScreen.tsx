@@ -1,15 +1,22 @@
 import React, { useCallback, useState } from 'react';
 import { Linking, Platform, Pressable, StyleSheet, View } from 'react-native';
-import MapView, { Marker, PROVIDER_GOOGLE, Region } from 'react-native-maps';
+import MapView, { Marker, Polyline, PROVIDER_GOOGLE, Region } from 'react-native-maps';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Phone } from 'phosphor-react-native';
+import {
+  ArrowLeft,
+  ChatCircle,
+  Phone,
+  ShareNetwork,
+  ShieldCheck,
+} from 'phosphor-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 import {
+  Avatar,
   Body,
   Button,
   Caption,
-  Heading,
+  IconButton,
   Micro,
   Price,
   Title,
@@ -36,6 +43,17 @@ interface DriverPos {
   lat: number;
   lng: number;
 }
+
+const SILVER_MAP_STYLE = [
+  { elementType: 'geometry', stylers: [{ color: '#f5f5f5' }] },
+  { elementType: 'labels.icon', stylers: [{ visibility: 'off' }] },
+  { elementType: 'labels.text.fill', stylers: [{ color: '#616161' }] },
+  { elementType: 'labels.text.stroke', stylers: [{ color: '#f5f5f5' }] },
+  { featureType: 'poi', stylers: [{ visibility: 'off' }] },
+  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#ffffff' }] },
+  { featureType: 'transit', stylers: [{ visibility: 'off' }] },
+  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#c9c9c9' }] },
+];
 
 export default function TrackingScreen({ navigation }: Props): React.JSX.Element {
   const ride = useRideStore((s) => s.currentRide);
@@ -99,6 +117,15 @@ export default function TrackingScreen({ navigation }: Props): React.JSX.Element
     void Linking.openURL(`tel:${driver.phone}`);
   }, [driver]);
 
+  const onMessageDriver = useCallback(() => {
+    if (!driver?.phone) return;
+    void Linking.openURL(`sms:${driver.phone}`);
+  }, [driver]);
+
+  const onShareTrip = useCallback(() => {
+    // Stub — full Share is deferred. No-op so the icon is tappable in the prototype.
+  }, []);
+
   const onPaidInCash = useCallback(() => {
     navigation.replace('Rate');
   }, [navigation]);
@@ -127,10 +154,17 @@ export default function TrackingScreen({ navigation }: Props): React.JSX.Element
 
   const headline =
     ride.status === 'started'
-      ? 'Trip in progress'
+      ? 'On the way to drop'
       : ride.status === 'completed'
         ? 'Trip complete'
         : 'Driver on the way';
+
+  const subhead =
+    ride.status === 'started'
+      ? 'Enjoy your ride'
+      : ride.status === 'completed'
+        ? 'Hope you had a great trip'
+        : `${driver?.name?.split(' ')[0] ?? 'Driver'} is heading to pickup`;
 
   const driverName = driver?.name?.trim() || 'Driver';
   const vehicleLine = driver
@@ -144,28 +178,69 @@ export default function TrackingScreen({ navigation }: Props): React.JSX.Element
         style={StyleSheet.absoluteFill}
         region={region}
         toolbarEnabled={false}
+        customMapStyle={SILVER_MAP_STYLE}
       >
         <Marker
           coordinate={{ latitude: ride.pickupLat, longitude: ride.pickupLng }}
-          pinColor={colors.accent}
+          pinColor={colors.success}
           title="Pickup"
         />
+        <Marker
+          coordinate={{ latitude: ride.dropLat, longitude: ride.dropLng }}
+          pinColor={colors.ink.primary}
+          title="Drop"
+        />
         {driverPos ? (
-          <Marker
-            coordinate={{ latitude: driverPos.lat, longitude: driverPos.lng }}
-            title="Driver"
-          />
+          <>
+            <Marker
+              coordinate={{ latitude: driverPos.lat, longitude: driverPos.lng }}
+              pinColor={colors.accent}
+              title="Driver"
+            />
+            <Polyline
+              coordinates={[
+                { latitude: driverPos.lat, longitude: driverPos.lng },
+                { latitude: ride.pickupLat, longitude: ride.pickupLng },
+              ]}
+              strokeColor={colors.map.route}
+              strokeWidth={4}
+            />
+          </>
         ) : null}
       </MapView>
 
-      <SafeAreaView style={styles.overlay} pointerEvents="box-none" edges={['top', 'bottom']}>
-        <View />
-        <View style={styles.card}>
+      <SafeAreaView
+        style={styles.topOverlay}
+        pointerEvents="box-none"
+        edges={['top']}
+      >
+        <View style={styles.topRow}>
+          <IconButton
+            icon={<ArrowLeft size={20} color={colors.ink.primary} weight="regular" />}
+            onPress={() => navigation.replace('Home')}
+            accessibilityLabel="Back"
+          />
+          <View style={styles.statusPill}>
+            <View style={styles.statusDot} />
+            <Caption color="primary" style={styles.statusText}>
+              {headline}
+            </Caption>
+          </View>
+          <View style={styles.topSpacer} />
+        </View>
+      </SafeAreaView>
+
+      <SafeAreaView edges={['bottom']} style={styles.sheetWrap} pointerEvents="box-none">
+        <View style={styles.sheet}>
+          <View style={styles.handle} />
+
           {isCompleted ? (
             <>
-              <Heading accessibilityRole="header">{headline}</Heading>
-              <Caption color="secondary" style={styles.eta}>
-                Confirm cash payment to your driver
+              <Title color="primary" style={styles.headline}>
+                {headline}
+              </Title>
+              <Caption color="secondary" style={styles.sub}>
+                {subhead}
               </Caption>
 
               <View style={styles.fareRow}>
@@ -178,46 +253,88 @@ export default function TrackingScreen({ navigation }: Props): React.JSX.Element
                 label={`Paid in cash · ₹${fare}`}
                 accessibilityLabel={`Mark as paid in cash, rupees ${fare}`}
                 size="lg"
+                variant="primary"
                 fullWidth
                 onPress={onPaidInCash}
               />
             </>
           ) : (
             <>
-              <Heading accessibilityRole="header">{headline}</Heading>
-              {ride.status === 'assigned' ? (
-                <Caption
-                  color="secondary"
-                  style={styles.eta}
-                  accessibilityLabel={`${driverName} is on the way to pickup`}
-                >
-                  {driverName} is on the way
-                </Caption>
-              ) : null}
+              <Title color="primary" style={styles.headline}>
+                {headline}
+              </Title>
+              <Caption color="secondary" style={styles.sub}>
+                {subhead}
+              </Caption>
 
               <View style={styles.driverRow}>
+                <Avatar name={driverName} size={48} />
                 <View style={styles.driverInfo}>
-                  <Title accessibilityLabel={`Driver ${driverName}`}>{driverName}</Title>
-                  <Caption
-                    color="secondary"
-                    accessibilityLabel={
-                      driver
-                        ? `Vehicle ${driver.vehicleModel}, plate ${driver.vehicleNo}`
-                        : 'Vehicle details loading'
-                    }
-                  >
+                  <Body color="primary" style={styles.driverName} numberOfLines={1}>
+                    {driverName}
+                  </Body>
+                  <Caption color="secondary" numberOfLines={1}>
                     {vehicleLine}
                   </Caption>
                 </View>
+                {driver?.vehicleNo ? (
+                  <View style={styles.plateChip}>
+                    <Caption color="primary" style={styles.plateText}>
+                      {driver.vehicleNo}
+                    </Caption>
+                  </View>
+                ) : null}
+              </View>
+
+              <View style={styles.actionsRow}>
                 <Pressable
                   onPress={onCallDriver}
+                  disabled={!driver?.phone}
                   accessibilityRole="button"
                   accessibilityLabel="Call driver"
-                  style={styles.callBtn}
-                  hitSlop={8}
-                  disabled={!driver?.phone}
+                  style={({ pressed }) => [
+                    styles.actionBtn,
+                    pressed ? styles.actionBtnPressed : null,
+                    !driver?.phone ? styles.actionBtnDisabled : null,
+                  ]}
+                  hitSlop={6}
                 >
-                  <Phone size={20} color={colors.ink.primary} weight="regular" />
+                  <Phone size={18} color={colors.ink.primary} weight="regular" />
+                  <Caption color="primary" style={styles.actionLabel}>
+                    Call
+                  </Caption>
+                </Pressable>
+                <Pressable
+                  onPress={onMessageDriver}
+                  disabled={!driver?.phone}
+                  accessibilityRole="button"
+                  accessibilityLabel="Message driver"
+                  style={({ pressed }) => [
+                    styles.actionBtn,
+                    pressed ? styles.actionBtnPressed : null,
+                    !driver?.phone ? styles.actionBtnDisabled : null,
+                  ]}
+                  hitSlop={6}
+                >
+                  <ChatCircle size={18} color={colors.ink.primary} weight="regular" />
+                  <Caption color="primary" style={styles.actionLabel}>
+                    Message
+                  </Caption>
+                </Pressable>
+                <Pressable
+                  onPress={onShareTrip}
+                  accessibilityRole="button"
+                  accessibilityLabel="Share trip"
+                  style={({ pressed }) => [
+                    styles.actionBtn,
+                    pressed ? styles.actionBtnPressed : null,
+                  ]}
+                  hitSlop={6}
+                >
+                  <ShareNetwork size={18} color={colors.ink.primary} weight="regular" />
+                  <Caption color="primary" style={styles.actionLabel}>
+                    Share
+                  </Caption>
                 </Pressable>
               </View>
 
@@ -233,17 +350,35 @@ export default function TrackingScreen({ navigation }: Props): React.JSX.Element
               ) : null}
 
               {ride.status === 'assigned' ? (
-                <Pressable
-                  onPress={onCancel}
-                  disabled={cancelling}
-                  accessibilityRole="button"
-                  accessibilityLabel="Cancel ride"
-                  accessibilityState={{ disabled: cancelling, busy: cancelling }}
-                  style={styles.cancelBtn}
-                  hitSlop={8}
-                >
-                  <Body color="danger">{cancelling ? 'Cancelling…' : 'Cancel ride'}</Body>
-                </Pressable>
+                <View style={styles.bottomActions}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Safety center"
+                    style={({ pressed }) => [
+                      styles.safetyChip,
+                      pressed ? styles.safetyChipPressed : null,
+                    ]}
+                    hitSlop={6}
+                  >
+                    <ShieldCheck size={14} color={colors.ink.primary} weight="regular" />
+                    <Caption color="primary" style={styles.safetyText}>
+                      Safety
+                    </Caption>
+                  </Pressable>
+                  <Pressable
+                    onPress={onCancel}
+                    disabled={cancelling}
+                    accessibilityRole="button"
+                    accessibilityLabel="Cancel ride"
+                    accessibilityState={{ disabled: cancelling, busy: cancelling }}
+                    style={styles.cancelBtn}
+                    hitSlop={8}
+                  >
+                    <Caption color="danger" style={styles.cancelText}>
+                      {cancelling ? 'Cancelling…' : 'Cancel ride'}
+                    </Caption>
+                  </Pressable>
+                </View>
               ) : null}
             </>
           )}
@@ -258,9 +393,46 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.bg.primary,
   },
-  overlay: {
+  topOverlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+  },
+  topRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.sm,
+  },
+  statusPill: {
     flex: 1,
-    justifyContent: 'space-between',
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.bg.elevated,
+    borderRadius: radius.chip,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 8,
+    marginHorizontal: spacing.sm,
+    shadowColor: colors.shadow.color,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.success,
+    marginRight: spacing.sm,
+  },
+  statusText: {
+    flex: 1,
+    fontWeight: '600',
+  },
+  topSpacer: {
+    width: 44,
   },
   empty: {
     flex: 1,
@@ -271,44 +443,127 @@ const styles = StyleSheet.create({
   spacer: {
     height: spacing.base,
   },
-  card: {
-    margin: spacing.lg,
-    backgroundColor: colors.bg.surface,
-    borderRadius: radius.card,
-    padding: spacing.lg,
+  sheetWrap: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
-  eta: {
-    marginTop: spacing.xs,
+  sheet: {
+    backgroundColor: colors.bg.elevated,
+    borderTopLeftRadius: radius.sheet,
+    borderTopRightRadius: radius.sheet,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.lg,
+    shadowColor: colors.shadow.color,
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 16,
+  },
+  handle: {
+    alignSelf: 'center',
+    width: 44,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#D5D5DA',
+    marginBottom: spacing.base,
+  },
+  headline: {
+    fontSize: 22,
+    lineHeight: 26,
+    fontWeight: '700',
+  },
+  sub: {
+    marginTop: 2,
+    marginBottom: spacing.base,
   },
   driverRow: {
-    marginTop: spacing.base,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    paddingVertical: spacing.sm,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: colors.border,
   },
   driverInfo: {
-    flexShrink: 1,
+    flex: 1,
+    marginLeft: spacing.md,
   },
-  callBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.bg.elevated,
+  driverName: {
+    fontWeight: '600',
+    fontSize: 16,
+  },
+  plateChip: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: 6,
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: radius.chip,
+  },
+  plateText: {
+    fontWeight: '700',
+    letterSpacing: 0.4,
+  },
+  actionsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: spacing.base,
+  },
+  actionBtn: {
+    flex: 1,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: radius.button,
+    paddingVertical: spacing.sm + 2,
+    marginHorizontal: 4,
   },
-  cancelBtn: {
-    marginTop: spacing.base,
-    paddingVertical: spacing.sm,
-    alignSelf: 'flex-start',
+  actionBtnPressed: {
+    backgroundColor: '#E8E8EC',
   },
-  errorLine: {
-    marginTop: spacing.sm,
+  actionBtnDisabled: {
+    opacity: 0.4,
+  },
+  actionLabel: {
+    marginLeft: 6,
+    fontWeight: '600',
   },
   fareRow: {
     marginTop: spacing.base,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+  },
+  errorLine: {
+    marginTop: spacing.sm,
+  },
+  bottomActions: {
+    marginTop: spacing.base,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  safetyChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: radius.chip,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 8,
+  },
+  safetyChipPressed: {
+    backgroundColor: '#E8E8EC',
+  },
+  safetyText: {
+    marginLeft: 4,
+    fontWeight: '600',
+  },
+  cancelBtn: {
+    paddingVertical: spacing.sm,
+  },
+  cancelText: {
+    fontWeight: '600',
   },
 });

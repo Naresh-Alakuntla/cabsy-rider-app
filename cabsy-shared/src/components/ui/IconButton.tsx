@@ -2,17 +2,18 @@ import React, { useCallback, useRef } from 'react';
 import { Animated, Pressable, StyleSheet } from 'react-native';
 import { colors } from '../../theme/colors';
 
-export type IconButtonVariant = 'default' | 'accent';
+export type IconButtonVariant = 'default' | 'accent' | 'dark';
 
 export interface IconButtonProps {
   icon: React.ReactNode;
   onPress: () => void;
   variant?: IconButtonVariant;
   disabled?: boolean;
+  size?: number;
   accessibilityLabel?: string;
 }
 
-const SIZE = 44;
+const DEFAULT_SIZE = 44;
 const PRESS_DURATION = 120;
 
 export const IconButton: React.FC<IconButtonProps> = ({
@@ -20,6 +21,7 @@ export const IconButton: React.FC<IconButtonProps> = ({
   onPress,
   variant = 'default',
   disabled = false,
+  size = DEFAULT_SIZE,
   accessibilityLabel,
 }) => {
   const overlayOpacity = useRef(new Animated.Value(0)).current;
@@ -40,10 +42,25 @@ export const IconButton: React.FC<IconButtonProps> = ({
     }).start();
   }, [overlayOpacity]);
 
-  const backgroundColor =
-    variant === 'accent' ? colors.accent : colors.bg.surface;
-  const pressOverlayColor =
-    variant === 'accent' ? colors.accentPressed : colors.divider;
+  let backgroundColor: string;
+  let pressOverlayColor: string;
+  let borderColor: string | undefined;
+  switch (variant) {
+    case 'accent':
+      backgroundColor = colors.accent;
+      pressOverlayColor = colors.accentPressed;
+      break;
+    case 'dark':
+      backgroundColor = colors.cta.primary;
+      pressOverlayColor = colors.cta.primaryPressed;
+      break;
+    case 'default':
+    default:
+      backgroundColor = colors.bg.elevated;
+      pressOverlayColor = colors.surfaceMuted;
+      borderColor = colors.border;
+      break;
+  }
 
   return (
     <Pressable
@@ -55,7 +72,14 @@ export const IconButton: React.FC<IconButtonProps> = ({
       onPressOut={handlePressOut}
       style={[
         styles.base,
-        { backgroundColor },
+        {
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+          backgroundColor,
+          ...(borderColor ? { borderWidth: 1, borderColor } : {}),
+        },
+        styles.shadow,
         disabled ? styles.disabled : null,
       ]}
     >
@@ -63,7 +87,7 @@ export const IconButton: React.FC<IconButtonProps> = ({
         pointerEvents="none"
         style={[
           StyleSheet.absoluteFill,
-          styles.overlay,
+          { borderRadius: size / 2 },
           { backgroundColor: pressOverlayColor, opacity: overlayOpacity },
         ]}
       />
@@ -74,15 +98,16 @@ export const IconButton: React.FC<IconButtonProps> = ({
 
 const styles = StyleSheet.create({
   base: {
-    width: SIZE,
-    height: SIZE,
-    borderRadius: SIZE / 2,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
   },
-  overlay: {
-    borderRadius: SIZE / 2,
+  shadow: {
+    shadowColor: colors.shadow.color,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 2,
   },
   disabled: {
     opacity: 0.5,

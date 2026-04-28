@@ -2,13 +2,13 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { CalendarBlank, MapPin } from 'phosphor-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 import {
   Body,
   Caption,
-  Heading,
-  Pill,
+  Display,
   Skeleton,
   Title,
 } from '@cabsy/shared';
@@ -27,7 +27,20 @@ type LoadState = 'idle' | 'loading' | 'ready' | 'error';
 function formatDate(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
-  return d.toLocaleString();
+  return d.toLocaleDateString(undefined, {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+  });
+}
+
+function formatTime(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleTimeString(undefined, {
+    hour: 'numeric',
+    minute: '2-digit',
+  });
 }
 
 function statusLabel(status: RideStatus): string {
@@ -49,6 +62,21 @@ function statusLabel(status: RideStatus): string {
   }
 }
 
+function statusColor(status: RideStatus): { bg: string; fg: 'success' | 'danger' | 'secondary' | 'accent' } {
+  switch (status) {
+    case 'completed':
+      return { bg: 'rgba(31,173,102,0.12)', fg: 'success' };
+    case 'cancelled':
+    case 'expired':
+      return { bg: 'rgba(229,72,77,0.10)', fg: 'danger' };
+    case 'started':
+    case 'assigned':
+      return { bg: colors.accentSoft, fg: 'accent' };
+    default:
+      return { bg: colors.surfaceMuted, fg: 'secondary' };
+  }
+}
+
 interface RideRowProps {
   ride: Ride;
   expanded: boolean;
@@ -58,9 +86,11 @@ interface RideRowProps {
 function RideRow({ ride, expanded, onToggle }: RideRowProps): React.JSX.Element {
   const fare = ride.finalFare ?? ride.suggestedFare;
   const status = statusLabel(ride.status);
+  const sc = statusColor(ride.status);
   const rowLabel = `Ride from ${ride.pickupAddress} to ${ride.dropAddress}, ${formatDate(
     ride.createdAt,
   )}, fare rupees ${fare}, status ${status.toLowerCase()}`;
+
   return (
     <Pressable
       onPress={onToggle}
@@ -68,36 +98,50 @@ function RideRow({ ride, expanded, onToggle }: RideRowProps): React.JSX.Element 
       accessibilityLabel={rowLabel}
       accessibilityHint={expanded ? 'Collapses details' : 'Expands details'}
       accessibilityState={{ expanded }}
-      style={[styles.row, expanded ? styles.rowExpanded : null]}
+      style={({ pressed }) => [
+        styles.card,
+        pressed ? styles.cardPressed : null,
+      ]}
     >
-      <View style={styles.rowHeader}>
-        <View style={styles.rowHeaderLeft}>
-          <Title numberOfLines={1}>{ride.pickupAddress}</Title>
-          <Caption color="secondary" numberOfLines={1}>
-            {`→ ${ride.dropAddress}`}
+      <View style={styles.cardHeader}>
+        <Caption color="secondary" style={styles.dateRow}>
+          <CalendarBlank size={12} color={colors.ink.secondary} weight="regular" />
+          {`  ${formatDate(ride.createdAt)} · ${formatTime(ride.createdAt)}`}
+        </Caption>
+        <View style={[styles.statusChip, { backgroundColor: sc.bg }]}>
+          <Caption color={sc.fg} style={styles.statusChipText}>
+            {status}
           </Caption>
-          <Caption color="tertiary" style={styles.rowDate}>
-            {formatDate(ride.createdAt)}
-          </Caption>
-        </View>
-        <View style={styles.rowHeaderRight}>
-          <Title accessibilityLabel={`Rupees ${fare}`}>{`₹${fare}`}</Title>
-          <View style={styles.statusPill}>
-            <Pill label={status} />
-          </View>
         </View>
       </View>
+
+      <View style={styles.routeRow}>
+        <View style={styles.routeMarkersCol}>
+          <View style={styles.greenDot} />
+          <View style={styles.routeConnector} />
+          <View style={styles.darkSquare} />
+        </View>
+        <View style={styles.routeText}>
+          <Body color="primary" numberOfLines={1} style={styles.addrPrimary}>
+            {ride.pickupAddress}
+          </Body>
+          <View style={styles.gap6} />
+          <Body color="primary" numberOfLines={1} style={styles.addrPrimary}>
+            {ride.dropAddress}
+          </Body>
+        </View>
+      </View>
+
+      <View style={styles.fareRow}>
+        <Caption color="secondary">{`${ride.distanceKm.toFixed(1)} km`}</Caption>
+        <Title color="primary" style={styles.fare}>{`₹${fare}`}</Title>
+      </View>
+
       {expanded ? (
         <View style={styles.expanded}>
-          <Caption
-            color="secondary"
-            accessibilityLabel={`Distance ${ride.distanceKm.toFixed(1)} kilometres`}
-          >
-            {`Distance: ${ride.distanceKm.toFixed(1)} km`}
-          </Caption>
           {ride.completedAt ? (
-            <Caption color="secondary" style={styles.expandedLine}>
-              {`Completed ${formatDate(ride.completedAt)}`}
+            <Caption color="secondary">
+              Completed {formatDate(ride.completedAt)} · {formatTime(ride.completedAt)}
             </Caption>
           ) : null}
         </View>
@@ -147,7 +191,7 @@ export default function HistoryScreen(_props: Props): React.JSX.Element {
       setRides((prev) => [...prev, ...res.rides]);
       setNextCursor(res.nextCursor);
     } catch {
-      // Silently keep the cursor so the user can scroll again to retry.
+      // Silently keep cursor for retry on next scroll.
     } finally {
       setLoadingMore(false);
       fetchingRef.current = false;
@@ -163,7 +207,12 @@ export default function HistoryScreen(_props: Props): React.JSX.Element {
   return (
     <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
       <View style={styles.header}>
-        <Heading>Your rides</Heading>
+        <Display color="primary" style={styles.title}>
+          Activity
+        </Display>
+        <Caption color="secondary" style={styles.subtitle}>
+          Your past rides
+        </Caption>
       </View>
 
       {state === 'loading' || state === 'idle' ? (
@@ -192,13 +241,18 @@ export default function HistoryScreen(_props: Props): React.JSX.Element {
         </View>
       ) : rides.length === 0 ? (
         <View style={styles.centered}>
-          <Body color="secondary">Your rides will appear here.</Body>
+          <View style={styles.emptyIcon}>
+            <MapPin size={28} color={colors.ink.tertiary} weight="regular" />
+          </View>
+          <Body color="secondary" style={styles.emptyLine}>
+            Your rides will appear here.
+          </Body>
         </View>
       ) : (
         <FlashList
           data={rides}
           keyExtractor={(item) => item.id}
-          estimatedItemSize={96}
+          estimatedItemSize={156}
           extraData={expandedId}
           renderItem={({ item }) => (
             <RideRow
@@ -235,6 +289,14 @@ const styles = StyleSheet.create({
     paddingTop: spacing.base,
     paddingBottom: spacing.md,
   },
+  title: {
+    fontSize: 36,
+    lineHeight: 40,
+    fontWeight: '700',
+  },
+  subtitle: {
+    marginTop: 4,
+  },
   centered: {
     flex: 1,
     alignItems: 'center',
@@ -244,13 +306,25 @@ const styles = StyleSheet.create({
   centeredLine: {
     marginBottom: spacing.md,
   },
+  emptyIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: colors.surfaceMuted,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.base,
+  },
+  emptyLine: {
+    textAlign: 'center',
+  },
   skeletonList: {
     paddingHorizontal: spacing.lg,
   },
   skeletonItem: {
     paddingVertical: spacing.base,
     borderBottomWidth: 1,
-    borderBottomColor: colors.divider,
+    borderBottomColor: colors.border,
   },
   skeletonGap: {
     height: spacing.sm,
@@ -259,41 +333,92 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing['2xl'],
   },
-  row: {
-    paddingVertical: spacing.base,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.divider,
-  },
-  rowExpanded: {
-    backgroundColor: colors.bg.surface,
+  card: {
+    backgroundColor: colors.bg.elevated,
     borderRadius: radius.card,
-    borderBottomWidth: 0,
-    paddingHorizontal: spacing.base,
-    marginVertical: spacing.xs,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.base,
+    marginBottom: spacing.sm,
   },
-  rowHeader: {
+  cardPressed: {
+    backgroundColor: colors.surfaceMuted,
+  },
+  cardHeader: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     justifyContent: 'space-between',
+    marginBottom: spacing.sm,
   },
-  rowHeaderLeft: {
+  dateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  statusChip: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: radius.chip,
+  },
+  statusChipText: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+  },
+  routeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: spacing.xs,
+  },
+  routeMarkersCol: {
+    width: 16,
+    alignItems: 'center',
+    marginRight: spacing.sm,
+  },
+  greenDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.success,
+  },
+  routeConnector: {
+    width: 2,
+    height: 18,
+    backgroundColor: colors.border,
+    marginVertical: 4,
+  },
+  darkSquare: {
+    width: 8,
+    height: 8,
+    backgroundColor: colors.ink.primary,
+  },
+  routeText: {
     flex: 1,
-    paddingRight: spacing.md,
   },
-  rowHeaderRight: {
-    alignItems: 'flex-end',
+  addrPrimary: {
+    fontSize: 14,
+    fontWeight: '500',
   },
-  rowDate: {
-    marginTop: spacing.xs,
+  gap6: {
+    height: 6,
   },
-  statusPill: {
-    marginTop: spacing.xs,
+  fareRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: spacing.sm,
+    paddingTop: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  fare: {
+    fontWeight: '700',
   },
   expanded: {
-    marginTop: spacing.md,
-  },
-  expandedLine: {
-    marginTop: spacing.xs,
+    marginTop: spacing.sm,
+    paddingTop: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
   },
   footer: {
     paddingVertical: spacing.base,

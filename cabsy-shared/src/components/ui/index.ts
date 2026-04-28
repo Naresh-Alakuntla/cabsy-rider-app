@@ -3,6 +3,7 @@ export type { ScreenContainerProps } from './ScreenContainer';
 
 export {
   Display,
+  DisplayLg,
   Heading,
   Title,
   Body,

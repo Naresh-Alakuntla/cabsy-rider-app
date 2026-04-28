@@ -21,11 +21,20 @@ export const Sheet = forwardRef<BottomSheet, SheetProps>(
       <BottomSheet
         ref={ref}
         snapPoints={points}
-        handleIndicatorStyle={{ backgroundColor: colors.divider }}
+        handleIndicatorStyle={{
+          backgroundColor: '#D5D5DA',
+          width: 44,
+          height: 4,
+        }}
         backgroundStyle={{
-          backgroundColor: colors.bg.surface,
+          backgroundColor: colors.bg.elevated,
           borderTopLeftRadius: radius.sheet,
           borderTopRightRadius: radius.sheet,
+          shadowColor: colors.shadow.color,
+          shadowOffset: { width: 0, height: -4 },
+          shadowOpacity: 0.08,
+          shadowRadius: 12,
+          elevation: 16,
         }}
         {...rest}
       >

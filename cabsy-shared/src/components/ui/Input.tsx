@@ -50,20 +50,23 @@ export const Input: React.FC<InputProps> = ({
 }) => {
   const [focused, setFocused] = useState(false);
 
-  let borderColor: string = colors.divider;
+  let borderColor: string = colors.border;
+  let borderWidth = 1;
   if (error) {
     borderColor = colors.danger;
+    borderWidth = 1.5;
   } else if (focused) {
     borderColor = colors.accent;
+    borderWidth = 1.5;
   }
 
   const fieldStyle: ViewStyle = {
     borderColor,
-    backgroundColor: colors.bg.surface,
-    borderWidth: 1,
+    backgroundColor: colors.bg.elevated,
+    borderWidth,
     borderRadius: radius.input,
     paddingHorizontal: spacing.base,
-    height: 48,
+    height: 52,
     flexDirection: 'row',
     alignItems: 'center',
   };

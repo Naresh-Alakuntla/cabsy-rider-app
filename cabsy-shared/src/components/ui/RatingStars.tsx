@@ -34,7 +34,7 @@ export const RatingStars: React.FC<RatingStarsProps> = ({
           <Star
             size={size}
             weight={filled ? 'fill' : 'regular'}
-            color={filled ? colors.accent : colors.ink.secondary}
+            color={filled ? colors.ink.primary : '#D5D5DA'}
           />
         );
         if (mode === 'picker') {

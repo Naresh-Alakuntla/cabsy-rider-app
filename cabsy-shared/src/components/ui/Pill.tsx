@@ -5,33 +5,39 @@ import { radius } from '../../theme/radius';
 import { spacing } from '../../theme/spacing';
 import { Caption } from './Text';
 
-export type PillVariant = 'online' | 'offline' | 'idle';
+export type PillVariant = 'online' | 'offline' | 'idle' | 'accent' | 'success' | 'danger';
 
 export interface PillProps {
   label: string;
   dot?: PillVariant;
   variant?: PillVariant;
+  selected?: boolean;
 }
 
 const dotColorFor = (variant: PillVariant): string => {
   switch (variant) {
     case 'online':
-      return colors.accent;
+    case 'success':
+      return colors.success;
     case 'offline':
       return colors.ink.tertiary;
     case 'idle':
       return colors.warning;
+    case 'accent':
+      return colors.accent;
+    case 'danger':
+      return colors.danger;
   }
 };
 
-export const Pill: React.FC<PillProps> = ({ label, dot, variant }) => {
+export const Pill: React.FC<PillProps> = ({ label, dot, variant, selected = false }) => {
   const dotVariant = dot ?? variant;
 
   const containerStyle: ViewStyle = {
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
+    paddingVertical: 6,
     borderRadius: radius.chip,
-    backgroundColor: colors.bg.surface,
+    backgroundColor: selected ? colors.accentSoft : colors.surfaceMuted,
     flexDirection: 'row',
     alignItems: 'center',
     alignSelf: 'flex-start',
@@ -44,7 +50,7 @@ export const Pill: React.FC<PillProps> = ({ label, dot, variant }) => {
           style={[styles.dot, { backgroundColor: dotColorFor(dotVariant) }]}
         />
       ) : null}
-      <Caption color="primary">{label}</Caption>
+      <Caption color={selected ? 'accent' : 'primary'}>{label}</Caption>
     </View>
   );
 };

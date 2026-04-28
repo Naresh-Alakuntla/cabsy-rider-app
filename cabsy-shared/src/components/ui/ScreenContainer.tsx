@@ -1,5 +1,5 @@
 import React from 'react';
-import { ScrollView, StyleSheet, View, ViewStyle } from 'react-native';
+import { ScrollView, StatusBar, StyleSheet, View, ViewStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../../theme/colors';
 import { spacing } from '../../theme/spacing';
@@ -24,6 +24,7 @@ export const ScreenContainer: React.FC<ScreenContainerProps> = ({
   if (scroll) {
     return (
       <SafeAreaView style={styles.safe}>
+        <StatusBar barStyle="dark-content" backgroundColor={colors.bg.primary} />
         <ScrollView
           contentContainerStyle={[innerStyle, style]}
           keyboardShouldPersistTaps="handled"
@@ -37,6 +38,7 @@ export const ScreenContainer: React.FC<ScreenContainerProps> = ({
 
   return (
     <SafeAreaView style={styles.safe}>
+      <StatusBar barStyle="dark-content" backgroundColor={colors.bg.primary} />
       <View style={[styles.flex, innerStyle, style]}>{children}</View>
     </SafeAreaView>
   );

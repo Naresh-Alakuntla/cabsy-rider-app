@@ -7,10 +7,15 @@ import {
   StyleSheet,
   View,
 } from 'react-native';
-import MapView, { Marker, PROVIDER_GOOGLE, Region } from 'react-native-maps';
+import MapView, {
+  Marker,
+  Polyline,
+  PROVIDER_GOOGLE,
+  Region,
+} from 'react-native-maps';
 import Geolocation from 'react-native-geolocation-service';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft } from 'phosphor-react-native';
+import { ArrowLeft, Car, Lightning, UsersThree } from 'phosphor-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 import {
@@ -18,8 +23,8 @@ import {
   Button,
   Caption,
   IconButton,
-  Pill,
   PlacesAutocompleteInput,
+  Title,
 } from '@cabsy/shared';
 import { colors } from '@cabsy/shared';
 import { radius } from '@cabsy/shared';
@@ -54,10 +59,30 @@ const FALLBACK_REGION: Region = {
 const PICKUP_DEFAULT_LABEL = 'Current location';
 const MAX_RECENT_CHIPS = 5;
 
+const SILVER_MAP_STYLE = [
+  { elementType: 'geometry', stylers: [{ color: '#f5f5f5' }] },
+  { elementType: 'labels.icon', stylers: [{ visibility: 'off' }] },
+  { elementType: 'labels.text.fill', stylers: [{ color: '#616161' }] },
+  { elementType: 'labels.text.stroke', stylers: [{ color: '#f5f5f5' }] },
+  { featureType: 'poi', stylers: [{ visibility: 'off' }] },
+  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#ffffff' }] },
+  { featureType: 'transit', stylers: [{ visibility: 'off' }] },
+  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#c9c9c9' }] },
+];
+
 interface DropSelection {
   address: string;
   lat: number;
   lng: number;
+}
+
+interface CarClass {
+  key: 'go' | 'premier' | 'xl';
+  name: string;
+  icon: React.ReactNode;
+  description: string;
+  multiplier: number;
+  etaMin: number;
 }
 
 async function ensureLocationPermission(): Promise<boolean> {
@@ -69,6 +94,27 @@ async function ensureLocationPermission(): Promise<boolean> {
     PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
   );
   return result === PermissionsAndroid.RESULTS.GRANTED;
+}
+
+function haversineKm(
+  a: { lat: number; lng: number },
+  b: { lat: number; lng: number },
+): number {
+  const R = 6371;
+  const dLat = ((b.lat - a.lat) * Math.PI) / 180;
+  const dLng = ((b.lng - a.lng) * Math.PI) / 180;
+  const lat1 = (a.lat * Math.PI) / 180;
+  const lat2 = (b.lat * Math.PI) / 180;
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+function estimateFare(km: number): number {
+  const base = 40;
+  const perKm = 14;
+  return Math.max(60, Math.round(base + perKm * km));
 }
 
 interface RecentDrop {
@@ -119,8 +165,8 @@ export default function BookRideScreen({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // One Places session per booking session — billed as a single autocomplete
-  // session rather than per-keystroke when the same token covers details.
+  const [selectedClass, setSelectedClass] = useState<CarClass['key']>('go');
+
   const sessionToken = useMemo(() => makeSessionToken(), []);
 
   useEffect(() => {
@@ -135,8 +181,6 @@ export default function BookRideScreen({
             lat: pos.coords.latitude,
             lng: pos.coords.longitude,
           });
-          // Default the pickup label to "Current location"; the user can tap
-          // the field and replace it with a real address via Places.
           setPickupAddress((prev) =>
             prev.length === 0 ? PICKUP_DEFAULT_LABEL : prev,
           );
@@ -148,7 +192,6 @@ export default function BookRideScreen({
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -159,7 +202,7 @@ export default function BookRideScreen({
         if (cancelled) return;
         setRecentDrops(uniqueRecentDrops(page.rides, MAX_RECENT_CHIPS));
       } catch {
-        // Recent locations are a convenience; failure is silent.
+        // recent locations are convenience-only.
       }
     })();
     return () => {
@@ -167,7 +210,20 @@ export default function BookRideScreen({
     };
   }, []);
 
+  // Frame the map around both points when both are set, otherwise around pickup.
   const region: Region = useMemo(() => {
+    if (pickupCoord && dropSelection) {
+      const midLat = (pickupCoord.lat + dropSelection.lat) / 2;
+      const midLng = (pickupCoord.lng + dropSelection.lng) / 2;
+      const dLat = Math.abs(pickupCoord.lat - dropSelection.lat) * 1.6 + 0.01;
+      const dLng = Math.abs(pickupCoord.lng - dropSelection.lng) * 1.6 + 0.01;
+      return {
+        latitude: midLat,
+        longitude: midLng,
+        latitudeDelta: dLat,
+        longitudeDelta: dLng,
+      };
+    }
     if (!pickupCoord) return FALLBACK_REGION;
     return {
       latitude: pickupCoord.lat,
@@ -175,11 +231,59 @@ export default function BookRideScreen({
       latitudeDelta: 0.04,
       longitudeDelta: 0.04,
     };
-  }, [pickupCoord]);
+  }, [pickupCoord, dropSelection]);
 
-  // Per master prompt §5/§14: never compute distance or fare on the frontend.
-  // The server returns the real suggestedFare after createRide.
-  const buttonLabel = 'Find drivers';
+  const distanceKm = useMemo(() => {
+    if (!pickupCoord || !dropSelection) return null;
+    return haversineKm(pickupCoord, dropSelection);
+  }, [pickupCoord, dropSelection]);
+
+  const carClasses: CarClass[] = useMemo(
+    () => [
+      {
+        key: 'go',
+        name: 'Cabsy Go',
+        icon: <Car size={28} color={colors.ink.primary} weight="fill" />,
+        description: 'Affordable, everyday rides',
+        multiplier: 1,
+        etaMin: 3,
+      },
+      {
+        key: 'premier',
+        name: 'Premier',
+        icon: <Lightning size={28} color={colors.ink.primary} weight="fill" />,
+        description: 'Newer cars, top-rated drivers',
+        multiplier: 1.35,
+        etaMin: 5,
+      },
+      {
+        key: 'xl',
+        name: 'Cabsy XL',
+        icon: <UsersThree size={28} color={colors.ink.primary} weight="fill" />,
+        description: 'Up to 6 seats',
+        multiplier: 1.7,
+        etaMin: 7,
+      },
+    ],
+    [],
+  );
+
+  const fareFor = useCallback(
+    (cc: CarClass): number => {
+      if (distanceKm === null) return 0;
+      return Math.round(estimateFare(distanceKm) * cc.multiplier);
+    },
+    [distanceKm],
+  );
+
+  const buttonLabel = useMemo(() => {
+    if (!pickupCoord || !dropSelection) {
+      return 'Find drivers';
+    }
+    const cc = carClasses.find((c) => c.key === selectedClass) ?? carClasses[0];
+    const fare = fareFor(cc);
+    return `Confirm ${cc.name} · ₹${fare}`;
+  }, [pickupCoord, dropSelection, carClasses, selectedClass, fareFor]);
 
   const canSubmit =
     !!pickupCoord &&
@@ -195,20 +299,20 @@ export default function BookRideScreen({
 
   const onPickupChangeText = useCallback((text: string) => {
     setPickupAddress(text);
-    // Once the user edits the pickup field, the GPS coordinate is no longer
-    // authoritative for the address — require Places resolution before submit
-    // unless the field is reset to the default label.
     if (text !== PICKUP_DEFAULT_LABEL) {
       setPickupResolved(false);
     }
   }, []);
 
-  const onDropChangeText = useCallback((text: string) => {
-    setDropAddress(text);
-    if (dropSelection && text !== dropSelection.address) {
-      setDropSelection(null);
-    }
-  }, [dropSelection]);
+  const onDropChangeText = useCallback(
+    (text: string) => {
+      setDropAddress(text);
+      if (dropSelection && text !== dropSelection.address) {
+        setDropSelection(null);
+      }
+    },
+    [dropSelection],
+  );
 
   const onDropSelect = useCallback((place: PlaceDetails) => {
     setDropSelection({
@@ -233,8 +337,6 @@ export default function BookRideScreen({
     setError(null);
     setSubmitting(true);
     try {
-      // Pickup uses GPS coords by default; if the user picked a Places result
-      // for the pickup field, those coords are already in `pickupCoord`.
       const pickupAddrFinal = pickupResolved
         ? pickupAddress.trim()
         : pickupAddress.trim().length > 0
@@ -254,8 +356,6 @@ export default function BookRideScreen({
         },
       });
 
-      // Seed the ride store with what we know now; the BidScreen will hydrate
-      // the rest from getRide if it ever needs the full record.
       const stubRide: Ride = {
         id: result.rideId,
         riderId: '',
@@ -265,10 +365,7 @@ export default function BookRideScreen({
         dropLat: dropSelection.lat,
         dropLng: dropSelection.lng,
         dropAddress: dropSelection.address,
-        // Backend computes the canonical distance/duration/polyline via Google
-        // Directions during createRide. BidScreen hydrates this from getRide
-        // when it needs the real values.
-        distanceKm: 0,
+        distanceKm: haversineKm(pickupCoord, dropSelection),
         durationMinutes: null,
         polyline: null,
         suggestedFare: result.suggestedFare,
@@ -289,8 +386,7 @@ export default function BookRideScreen({
       try {
         await riderEvents.joinRide(result.rideId);
       } catch {
-        // Joining is best-effort here; BidScreen mounts listeners regardless
-        // and the server will retry-deliver via the user room on reconnect.
+        // best-effort.
       }
 
       navigation.replace('Bid');
@@ -317,10 +413,6 @@ export default function BookRideScreen({
     navigation,
   ]);
 
-  // The PlacesAutocompleteInput surfaces a `NO_KEY` PlacesError visually and
-  // calls `onUnavailable` so we can also gate the submit button at the screen
-  // level. Once flipped, the user is warned and the ride cannot be submitted
-  // with stub coordinates.
   const onPlacesUnavailable = useCallback(() => {
     setPlacesUnavailable(true);
   }, []);
@@ -330,73 +422,112 @@ export default function BookRideScreen({
 
   return (
     <View style={styles.root}>
-      <MapView
-        provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
-        style={StyleSheet.absoluteFill}
-        region={region}
-        showsUserLocation={!!pickupCoord}
-        toolbarEnabled={false}
-      >
-        {pickupCoord ? (
-          <Marker
-            coordinate={{
-              latitude: pickupCoord.lat,
-              longitude: pickupCoord.lng,
-            }}
-            pinColor={colors.accent}
-          />
-        ) : null}
-      </MapView>
+      <View style={styles.mapWrap}>
+        <MapView
+          provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
+          style={StyleSheet.absoluteFill}
+          region={region}
+          showsUserLocation={!!pickupCoord}
+          toolbarEnabled={false}
+          customMapStyle={SILVER_MAP_STYLE}
+        >
+          {pickupCoord ? (
+            <Marker
+              coordinate={{
+                latitude: pickupCoord.lat,
+                longitude: pickupCoord.lng,
+              }}
+              pinColor={colors.success}
+            />
+          ) : null}
+          {dropSelection ? (
+            <Marker
+              coordinate={{
+                latitude: dropSelection.lat,
+                longitude: dropSelection.lng,
+              }}
+              pinColor={colors.ink.primary}
+            />
+          ) : null}
+          {pickupCoord && dropSelection ? (
+            <Polyline
+              coordinates={[
+                {
+                  latitude: pickupCoord.lat,
+                  longitude: pickupCoord.lng,
+                },
+                {
+                  latitude: dropSelection.lat,
+                  longitude: dropSelection.lng,
+                },
+              ]}
+              strokeColor={colors.map.route}
+              strokeWidth={4}
+            />
+          ) : null}
+        </MapView>
 
-      <SafeAreaView
-        style={styles.overlay}
-        pointerEvents="box-none"
-        edges={['top', 'bottom']}
-      >
-        <View style={styles.topRow}>
-          <IconButton
-            icon={
-              <ArrowLeft
-                size={20}
-                color={colors.ink.primary}
-                weight="regular"
-              />
-            }
-            onPress={navigation.goBack}
-            accessibilityLabel="Back"
-          />
-        </View>
+        <SafeAreaView
+          style={styles.mapOverlay}
+          pointerEvents="box-none"
+          edges={['top']}
+        >
+          <View style={styles.topRow}>
+            <IconButton
+              icon={
+                <ArrowLeft
+                  size={20}
+                  color={colors.ink.primary}
+                  weight="regular"
+                />
+              }
+              onPress={navigation.goBack}
+              accessibilityLabel="Back"
+            />
+          </View>
+        </SafeAreaView>
+      </View>
 
-        <View style={styles.card}>
-          <PlacesAutocompleteInput
-            label="Pickup"
-            placeholder="Pickup address"
-            value={pickupAddress}
-            onChangeText={onPickupChangeText}
-            onSelect={onPickupSelect}
-            sessionToken={sessionToken}
-            nearLat={pickupCoord?.lat}
-            nearLng={pickupCoord?.lng}
-            onUnavailable={onPlacesUnavailable}
-          />
-          <View style={styles.spacer} />
-          <PlacesAutocompleteInput
-            label="Drop"
-            placeholder="Where to?"
-            value={dropAddress}
-            onChangeText={onDropChangeText}
-            onSelect={onDropSelect}
-            sessionToken={sessionToken}
-            nearLat={pickupCoord?.lat}
-            nearLng={pickupCoord?.lng}
-            onUnavailable={onPlacesUnavailable}
-          />
+      <View style={styles.sheet}>
+        <SafeAreaView edges={['bottom']}>
+          <ScrollView
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={styles.handle} />
 
-          {recentDrops.length > 0 ? (
-            <View style={styles.recentBlock}>
-              <Caption color="secondary" style={styles.recentLabel}>
-                Recent
-              </Caption>
+            <View style={styles.routeBox}>
+              <View style={styles.routeMarkersCol}>
+                <View style={styles.greenDot} />
+                <View style={styles.routeConnector} />
+                <View style={styles.darkSquare} />
+              </View>
+              <View style={styles.routeFieldsCol}>
+                <PlacesAutocompleteInput
+                  placeholder="Pickup"
+                  value={pickupAddress}
+                  onChangeText={onPickupChangeText}
+                  onSelect={onPickupSelect}
+                  sessionToken={sessionToken}
+                  nearLat={pickupCoord?.lat}
+                  nearLng={pickupCoord?.lng}
+                  onUnavailable={onPlacesUnavailable}
+                />
+                <View style={styles.fieldGap} />
+                <PlacesAutocompleteInput
+                  placeholder="Where to?"
+                  value={dropAddress}
+                  onChangeText={onDropChangeText}
+                  onSelect={onDropSelect}
+                  sessionToken={sessionToken}
+                  nearLat={pickupCoord?.lat}
+                  nearLng={pickupCoord?.lng}
+                  onUnavailable={onPlacesUnavailable}
+                />
+              </View>
+            </View>
+
+            {recentDrops.length > 0 && !dropSelection ? (
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
@@ -406,44 +537,92 @@ export default function BookRideScreen({
                   <Pressable
                     key={r.address}
                     onPress={() => onRecent(r)}
+                    style={({ pressed }) => [
+                      styles.recentChip,
+                      pressed ? styles.recentChipPressed : null,
+                    ]}
                     accessibilityRole="button"
                     accessibilityLabel={`Use ${r.address} as drop`}
-                    style={styles.recentItem}
-                    hitSlop={4}
                   >
-                    <Pill label={r.address} />
+                    <Caption
+                      color="primary"
+                      numberOfLines={1}
+                      style={styles.recentChipText}
+                    >
+                      {r.address}
+                    </Caption>
                   </Pressable>
                 ))}
               </ScrollView>
-            </View>
-          ) : null}
-        </View>
+            ) : null}
 
-        <View style={styles.bottom}>
-          {placesUnavailable ? (
-            <Caption color="danger" style={styles.warning}>
-              Address search not configured. Add Google Places API key.
-            </Caption>
-          ) : dropTypedWithoutResolution ? (
-            <Caption color="secondary" style={styles.warning}>
-              Pick a drop address from the suggestions to continue.
-            </Caption>
-          ) : null}
-          {error ? (
-            <Body color="danger" style={styles.error}>
-              {error}
-            </Body>
-          ) : null}
-          <Button
-            label={buttonLabel}
-            size="lg"
-            fullWidth
-            onPress={onSubmit}
-            disabled={!canSubmit || submitting}
-            loading={submitting}
-          />
-        </View>
-      </SafeAreaView>
+            {pickupCoord && dropSelection ? (
+              <>
+                <Title color="primary" style={styles.classesHeader}>
+                  Choose a ride
+                </Title>
+                {carClasses.map((cc) => {
+                  const isSelected = selectedClass === cc.key;
+                  return (
+                    <Pressable
+                      key={cc.key}
+                      onPress={() => setSelectedClass(cc.key)}
+                      style={[
+                        styles.classCard,
+                        isSelected ? styles.classCardSelected : null,
+                      ]}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${cc.name}, ${cc.etaMin} minutes away, ₹${fareFor(cc)}`}
+                      accessibilityState={{ selected: isSelected }}
+                    >
+                      <View style={styles.classIconWrap}>{cc.icon}</View>
+                      <View style={styles.classTextCol}>
+                        <Body color="primary" style={styles.className}>
+                          {cc.name}
+                          <Caption color="secondary"> · {cc.etaMin} min</Caption>
+                        </Body>
+                        <Caption color="secondary" numberOfLines={1}>
+                          {cc.description}
+                        </Caption>
+                      </View>
+                      <Title color="primary" style={styles.classFare}>
+                        ₹{fareFor(cc)}
+                      </Title>
+                    </Pressable>
+                  );
+                })}
+              </>
+            ) : null}
+
+            {placesUnavailable ? (
+              <Caption color="danger" style={styles.warning}>
+                Address search not configured. Add Google Places API key.
+              </Caption>
+            ) : dropTypedWithoutResolution ? (
+              <Caption color="secondary" style={styles.warning}>
+                Pick a drop address from the suggestions to continue.
+              </Caption>
+            ) : null}
+            {error ? (
+              <Body color="danger" style={styles.error}>
+                {error}
+              </Body>
+            ) : null}
+
+            <View style={styles.ctaWrap}>
+              <Button
+                label={buttonLabel}
+                size="lg"
+                fullWidth
+                variant="primary"
+                onPress={onSubmit}
+                disabled={!canSubmit || submitting}
+                loading={submitting}
+              />
+            </View>
+          </ScrollView>
+        </SafeAreaView>
+      </View>
     </View>
   );
 }
@@ -453,45 +632,140 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.bg.primary,
   },
-  overlay: {
+  mapWrap: {
+    height: '38%',
+    width: '100%',
+    backgroundColor: colors.surfaceMuted,
+  },
+  mapOverlay: {
     flex: 1,
-    justifyContent: 'space-between',
   },
   topRow: {
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.sm,
   },
-  card: {
-    marginHorizontal: spacing.lg,
-    marginTop: spacing.md,
-    backgroundColor: colors.bg.surface,
-    borderRadius: radius.card,
-    padding: spacing.base,
+  sheet: {
+    flex: 1,
+    backgroundColor: colors.bg.elevated,
+    borderTopLeftRadius: radius.sheet,
+    borderTopRightRadius: radius.sheet,
+    marginTop: -radius.sheet,
+    paddingHorizontal: spacing.lg,
+    shadowColor: colors.shadow.color,
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 16,
   },
-  spacer: {
-    height: spacing.md,
+  handle: {
+    alignSelf: 'center',
+    width: 44,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#D5D5DA',
+    marginTop: spacing.sm,
+    marginBottom: spacing.base,
   },
-  recentBlock: {
-    marginTop: spacing.base,
+  routeBox: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    marginBottom: spacing.base,
   },
-  recentLabel: {
-    marginBottom: spacing.sm,
+  routeMarkersCol: {
+    width: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: spacing.sm,
+    paddingVertical: 16,
+  },
+  greenDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: colors.success,
+  },
+  routeConnector: {
+    flex: 1,
+    width: 2,
+    backgroundColor: colors.border,
+    marginVertical: 6,
+  },
+  darkSquare: {
+    width: 10,
+    height: 10,
+    backgroundColor: colors.ink.primary,
+  },
+  routeFieldsCol: {
+    flex: 1,
+  },
+  fieldGap: {
+    height: spacing.sm,
   },
   recentRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    paddingBottom: spacing.base,
   },
-  recentItem: {
+  recentChip: {
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: radius.chip,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 8,
     marginRight: spacing.sm,
+    maxWidth: 220,
   },
-  bottom: {
-    paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.lg,
+  recentChipPressed: {
+    backgroundColor: '#E8E8EC',
+  },
+  recentChipText: {
+    fontWeight: '500',
+  },
+  classesHeader: {
+    marginTop: spacing.sm,
+    marginBottom: spacing.sm,
+    fontWeight: '700',
+  },
+  classCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.bg.elevated,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.card,
+    padding: spacing.base,
+    marginBottom: spacing.sm,
+  },
+  classCardSelected: {
+    borderColor: colors.accent,
+    borderWidth: 2,
+    backgroundColor: colors.accentSoft,
+  },
+  classIconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: colors.surfaceMuted,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: spacing.md,
+  },
+  classTextCol: {
+    flex: 1,
+  },
+  className: {
+    fontWeight: '600',
+    fontSize: 16,
+  },
+  classFare: {
+    fontWeight: '700',
   },
   warning: {
-    marginBottom: spacing.sm,
+    marginTop: spacing.sm,
   },
   error: {
-    marginBottom: spacing.sm,
+    marginTop: spacing.sm,
+  },
+  ctaWrap: {
+    paddingTop: spacing.base,
+    paddingBottom: spacing.lg,
   },
 });

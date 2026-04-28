@@ -27,7 +27,7 @@ export const Avatar: React.FC<AvatarProps> = ({ uri, name, size = 36 }) => {
     width: size,
     height: size,
     borderRadius: size / 2,
-    backgroundColor: colors.bg.elevated,
+    backgroundColor: colors.surfaceMuted,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',

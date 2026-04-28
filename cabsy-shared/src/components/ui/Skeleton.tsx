@@ -7,7 +7,6 @@ import Animated, {
   withRepeat,
   withTiming,
 } from 'react-native-reanimated';
-import { colors } from '../../theme/colors';
 
 export interface SkeletonProps {
   width?: DimensionValue;
@@ -20,11 +19,11 @@ export const Skeleton: React.FC<SkeletonProps> = ({
   height = 16,
   radius = 6,
 }) => {
-  const opacity = useSharedValue(0.4);
+  const opacity = useSharedValue(0.5);
 
   useEffect(() => {
     opacity.value = withRepeat(
-      withTiming(0.8, { duration: 900, easing: Easing.inOut(Easing.ease) }),
+      withTiming(1, { duration: 900, easing: Easing.inOut(Easing.ease) }),
       -1,
       true,
     );
@@ -49,6 +48,6 @@ export const Skeleton: React.FC<SkeletonProps> = ({
 
 const styles = StyleSheet.create({
   base: {
-    backgroundColor: colors.bg.elevated,
+    backgroundColor: '#EDEDF0',
   },
 });

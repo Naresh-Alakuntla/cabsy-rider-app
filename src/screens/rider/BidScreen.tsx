@@ -146,6 +146,7 @@ function BidListItem({
             label={`Accept ₹${bid.amount}`}
             accessibilityLabel={`Accept fare of rupees ${bid.amount}`}
             size="lg"
+            variant="primary"
             fullWidth
             onPress={onAccept}
             loading={accepting}
@@ -306,7 +307,7 @@ export default function BidScreen({ navigation }: Props): React.JSX.Element {
             radius={1500}
             strokeColor={colors.accent}
             strokeWidth={1}
-            fillColor="rgba(201,169,97,0.08)"
+            fillColor="rgba(108,75,255,0.08)"
           />
         </MapView>
 
@@ -424,29 +425,34 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   pulseDot: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     backgroundColor: colors.accent,
     opacity: 0.7,
-    transform: [{ translateX: -12 }, { translateY: -12 }],
+    transform: [{ translateX: -14 }, { translateY: -14 }],
   },
   sheet: {
     flex: 1,
-    backgroundColor: colors.bg.surface,
+    backgroundColor: colors.bg.elevated,
     borderTopLeftRadius: radius.sheet,
     borderTopRightRadius: radius.sheet,
     overflow: 'hidden',
     marginTop: -radius.sheet,
+    shadowColor: colors.shadow.color,
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 16,
   },
   sheetInner: {
     flex: 1,
   },
   sheetHandle: {
-    width: 36,
+    width: 44,
     height: 4,
     borderRadius: 2,
-    backgroundColor: colors.divider,
+    backgroundColor: '#D5D5DA',
     alignSelf: 'center',
     marginTop: spacing.sm,
     marginBottom: spacing.sm,
@@ -465,26 +471,31 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
   },
   progressTrack: {
-    height: 2,
-    backgroundColor: colors.divider,
-    borderRadius: 1,
+    height: 4,
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: 2,
     overflow: 'hidden',
   },
   progressFill: {
-    height: 2,
+    height: 4,
     backgroundColor: colors.accent,
   },
   listContent: {
     paddingBottom: spacing['2xl'],
   },
   itemContainer: {
-    backgroundColor: colors.bg.primary,
+    backgroundColor: 'transparent',
   },
   expanded: {
-    backgroundColor: colors.bg.surface,
+    backgroundColor: colors.surfaceMuted,
+    marginHorizontal: spacing.base,
+    marginTop: -spacing.xs,
+    marginBottom: spacing.sm,
+    borderBottomLeftRadius: radius.card,
+    borderBottomRightRadius: radius.card,
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.base,
-    paddingTop: spacing.sm,
+    paddingTop: spacing.base,
   },
   expandedMeta: {
     marginBottom: spacing.md,

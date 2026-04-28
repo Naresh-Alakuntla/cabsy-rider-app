@@ -8,6 +8,6 @@ export interface DividerProps {
 
 export const Divider: React.FC<DividerProps> = ({ style }) => (
   <View
-    style={[{ height: 1, backgroundColor: colors.divider, alignSelf: 'stretch' }, style]}
+    style={[{ height: 1, backgroundColor: colors.border, alignSelf: 'stretch' }, style]}
   />
 );

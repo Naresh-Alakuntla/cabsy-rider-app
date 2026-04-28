@@ -8,8 +8,9 @@ import {
   Body,
   Button,
   Caption,
-  Heading,
+  Display,
   RatingStars,
+  Title,
 } from '@cabsy/shared';
 import { colors } from '@cabsy/shared';
 import { radius } from '@cabsy/shared';
@@ -23,13 +24,24 @@ import type { RiderStackParamList } from './types';
 
 type Props = NativeStackScreenProps<RiderStackParamList, 'Rate'>;
 
+const TAGS = [
+  'Clean car',
+  'Great music',
+  'Safe driving',
+  'On time',
+  'Friendly',
+  'Smooth ride',
+];
+
 export default function RateScreen({ navigation }: Props): React.JSX.Element {
   const ride = useRideStore((s) => s.currentRide);
+  const driver = useRideStore((s) => s.driver);
   const clearRide = useRideStore((s) => s.clearRide);
   const clearBids = useBidsStore((s) => s.clearBids);
 
   const [stars, setStars] = useState<number>(0);
   const [comment, setComment] = useState('');
+  const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set());
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -39,14 +51,26 @@ export default function RateScreen({ navigation }: Props): React.JSX.Element {
     navigation.replace('Home');
   }, [clearRide, clearBids, navigation]);
 
+  const toggleTag = useCallback((tag: string) => {
+    setSelectedTags((prev) => {
+      const next = new Set(prev);
+      if (next.has(tag)) next.delete(tag);
+      else next.add(tag);
+      return next;
+    });
+  }, []);
+
   const onSubmit = useCallback(async () => {
     if (!ride || stars < 1 || submitting) return;
     setError(null);
     setSubmitting(true);
     try {
+      const tagsLine =
+        selectedTags.size > 0 ? `Tags: ${[...selectedTags].join(', ')}` : '';
+      const merged = [tagsLine, comment.trim()].filter(Boolean).join('\n');
       await apiRatings.rateRide(ride.id, {
         stars,
-        comment: comment.trim() ? comment.trim() : undefined,
+        comment: merged.length > 0 ? merged : undefined,
       });
       goHome();
     } catch (e) {
@@ -58,7 +82,7 @@ export default function RateScreen({ navigation }: Props): React.JSX.Element {
     } finally {
       setSubmitting(false);
     }
-  }, [ride, stars, comment, submitting, goHome]);
+  }, [ride, stars, comment, selectedTags, submitting, goHome]);
 
   if (!ride) {
     return (
@@ -66,24 +90,25 @@ export default function RateScreen({ navigation }: Props): React.JSX.Element {
         <View style={styles.empty}>
           <Body color="secondary">No ride to rate.</Body>
           <View style={styles.gap} />
-          <Button label="Done" onPress={goHome} />
+          <Button label="Done" variant="primary" onPress={goHome} />
         </View>
       </SafeAreaView>
     );
   }
 
+  const driverName = driver?.name?.trim() || 'your driver';
   const canSubmit = stars >= 1 && !submitting;
 
   return (
     <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
       <View style={styles.container}>
-        <Heading>How was the ride?</Heading>
-
-        <View style={styles.driverBlock}>
-          {/* TODO: pass driver name into ride store on assignment so we can show it here. */}
-          <Avatar name="Driver" size={56} />
-          <Caption color="secondary" style={styles.driverName}>
-            Driver
+        <View style={styles.headerCol}>
+          <Avatar name={driverName} size={96} />
+          <Display color="primary" style={styles.heading}>
+            How was your trip?
+          </Display>
+          <Caption color="secondary" style={styles.subhead}>
+            with {driverName}
           </Caption>
         </View>
 
@@ -92,24 +117,53 @@ export default function RateScreen({ navigation }: Props): React.JSX.Element {
             value={stars}
             onChange={setStars}
             mode="picker"
-            size={36}
+            size={44}
           />
         </View>
 
+        {stars > 0 ? (
+          <View style={styles.tagsBlock}>
+            <Title color="primary" style={styles.tagsHeader}>
+              What stood out?
+            </Title>
+            <View style={styles.tagsRow}>
+              {TAGS.map((tag) => {
+                const selected = selectedTags.has(tag);
+                return (
+                  <Pressable
+                    key={tag}
+                    onPress={() => toggleTag(tag)}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected }}
+                    accessibilityLabel={`${tag}${selected ? ', selected' : ''}`}
+                    style={[
+                      styles.tag,
+                      selected ? styles.tagSelected : null,
+                    ]}
+                    hitSlop={4}
+                  >
+                    <Caption color={selected ? 'accent' : 'primary'} style={styles.tagText}>
+                      {tag}
+                    </Caption>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        ) : null}
+
         <View style={styles.commentBlock}>
-          <Caption color="secondary" style={styles.commentLabel}>
-            Comment (optional)
-          </Caption>
           <TextInput
             value={comment}
             onChangeText={setComment}
-            placeholder="What stood out?"
+            placeholder="Add a note (optional)"
             placeholderTextColor={colors.ink.tertiary}
             multiline
-            numberOfLines={4}
+            numberOfLines={3}
             textAlignVertical="top"
             style={styles.input}
             editable={!submitting}
+            selectionColor={colors.accent}
             accessibilityLabel="Comment, optional"
           />
         </View>
@@ -125,6 +179,7 @@ export default function RateScreen({ navigation }: Props): React.JSX.Element {
         <Button
           label="Submit"
           size="lg"
+          variant="primary"
           fullWidth
           onPress={onSubmit}
           disabled={!canSubmit}
@@ -139,7 +194,9 @@ export default function RateScreen({ navigation }: Props): React.JSX.Element {
           hitSlop={8}
           disabled={submitting}
         >
-          <Body color="secondary">Skip</Body>
+          <Caption color="secondary" style={styles.skipText}>
+            Skip
+          </Caption>
         </Pressable>
       </View>
     </SafeAreaView>
@@ -154,7 +211,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     paddingHorizontal: spacing.xl,
-    paddingTop: spacing.xl,
+    paddingTop: spacing.lg,
     paddingBottom: spacing.lg,
   },
   empty: {
@@ -166,28 +223,61 @@ const styles = StyleSheet.create({
   gap: {
     height: spacing.base,
   },
-  driverBlock: {
-    marginTop: spacing.xl,
-    alignItems: 'flex-start',
+  headerCol: {
+    alignItems: 'center',
+    marginTop: spacing.base,
   },
-  driverName: {
-    marginTop: spacing.sm,
+  heading: {
+    marginTop: spacing.lg,
+    fontSize: 28,
+    lineHeight: 32,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  subhead: {
+    marginTop: 4,
   },
   starsBlock: {
     marginTop: spacing.xl,
+    alignItems: 'center',
   },
-  commentBlock: {
+  tagsBlock: {
     marginTop: spacing.xl,
   },
-  commentLabel: {
+  tagsHeader: {
     marginBottom: spacing.sm,
+    fontWeight: '600',
+  },
+  tagsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    margin: -4,
+  },
+  tag: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: 8,
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: radius.chip,
+    margin: 4,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  tagSelected: {
+    backgroundColor: colors.accentSoft,
+    borderColor: colors.accent,
+  },
+  tagText: {
+    fontWeight: '600',
+  },
+  commentBlock: {
+    marginTop: spacing.lg,
   },
   input: {
-    minHeight: 96,
-    backgroundColor: colors.bg.surface,
+    minHeight: 88,
+    backgroundColor: colors.bg.elevated,
     borderRadius: radius.input,
     borderWidth: 1,
-    borderColor: colors.divider,
+    borderColor: colors.border,
     padding: spacing.base,
     color: colors.ink.primary,
     fontSize: typography.body.fontSize,
@@ -203,5 +293,8 @@ const styles = StyleSheet.create({
     marginTop: spacing.base,
     alignSelf: 'center',
     paddingVertical: spacing.sm,
+  },
+  skipText: {
+    fontWeight: '600',
   },
 });

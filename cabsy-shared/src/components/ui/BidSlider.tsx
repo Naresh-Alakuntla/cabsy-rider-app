@@ -28,9 +28,9 @@ export interface BidSliderProps {
   step?: number;
 }
 
-const TRACK_HEIGHT = 4;
-const TRACK_RADIUS = 2;
-const THUMB_SIZE = 28;
+const TRACK_HEIGHT = 6;
+const TRACK_RADIUS = 3;
+const THUMB_SIZE = 32;
 const THUMB_RADIUS = THUMB_SIZE / 2;
 const RING_WIDTH = 4;
 const TICK_HEIGHT = 8;
@@ -38,8 +38,6 @@ const TICK_HEIGHT_CENTER = 12;
 const TICK_WIDTH = 1;
 const GUTTER = 24;
 
-// Snap-on-release tolerance is 3 step-units (≈ ₹3 when caller passes paise
-// or ₹3 when caller passes rupees with step=1) — visual hint, not magnetism.
 const SNAP_TOLERANCE_STEPS = 3;
 
 const clamp = (n: number, lo: number, hi: number): number =>
@@ -49,8 +47,6 @@ const quantize = (n: number, step: number): number =>
   Math.round(n / step) * step;
 
 const toRupees = (minor: number, step: number): string => {
-  // When step is paise (>=100), divide by 100; otherwise the caller is
-  // already passing rupees and we render as-is.
   const rupees = step >= 100 ? minor / 100 : minor;
   return `₹${rupees}`;
 };
@@ -92,7 +88,6 @@ export function BidSlider({
   const dragStartX = useSharedValue<number>(0);
   const pressed = useSharedValue<number>(0);
 
-  // Sync thumb position when external value/layout changes (and we're not dragging).
   React.useEffect(() => {
     const target = valueToPx(value);
     thumbX.value = withTiming(target, {
@@ -193,7 +188,6 @@ export function BidSlider({
     transform: [{ translateX: thumbX.value }],
   }));
 
-  // Snap-tick offsets (px) along the track interior.
   const tickOffsets = useMemo(() => {
     return {
       lower: valueToPx(snapPoints.lower) + THUMB_RADIUS,
@@ -309,7 +303,7 @@ export function BidSlider({
 
 const styles = StyleSheet.create({
   tooltipRow: {
-    height: 44,
+    height: 52,
     justifyContent: 'flex-end',
     marginBottom: spacing.xs,
   },
@@ -318,7 +312,6 @@ const styles = StyleSheet.create({
     left: 0,
     width: THUMB_SIZE,
     alignItems: 'center',
-    // Center the rendered Price (much wider than the thumb) over the thumb.
     marginLeft: -40,
     paddingHorizontal: 44,
   },
@@ -340,7 +333,7 @@ const styles = StyleSheet.create({
   track: {
     height: TRACK_HEIGHT,
     borderRadius: TRACK_RADIUS,
-    backgroundColor: colors.bg.elevated,
+    backgroundColor: colors.surfaceMuted,
     marginHorizontal: THUMB_RADIUS,
   },
   fill: {
@@ -356,13 +349,13 @@ const styles = StyleSheet.create({
     width: THUMB_SIZE,
     height: THUMB_SIZE,
     borderRadius: THUMB_RADIUS,
-    backgroundColor: colors.accent,
-    borderColor: colors.ink.primary,
-    shadowColor: colors.bg.primary,
+    backgroundColor: '#FFFFFF',
+    borderColor: colors.accent,
+    shadowColor: colors.shadow.color,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.4,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOpacity: 0.18,
+    shadowRadius: 6,
+    elevation: 4,
   },
   labelRow: {
     flexDirection: 'row',

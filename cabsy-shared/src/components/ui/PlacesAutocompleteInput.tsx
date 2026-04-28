@@ -233,8 +233,13 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bg.elevated,
     borderRadius: radius.input,
     borderWidth: 1,
-    borderColor: colors.divider,
+    borderColor: colors.border,
     overflow: 'hidden',
+    shadowColor: colors.shadow.color,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 4,
   },
   row: {
     minHeight: ROW_MIN_HEIGHT,
@@ -244,9 +249,9 @@ const styles = StyleSheet.create({
   },
   rowDivider: {
     borderTopWidth: 1,
-    borderTopColor: colors.divider,
+    borderTopColor: colors.border,
   },
   rowPressed: {
-    backgroundColor: colors.bg.surface,
+    backgroundColor: colors.surfaceMuted,
   },
 });

@@ -13,7 +13,7 @@ import { spacing } from '../../theme/spacing';
 import { typography } from '../../theme/typography';
 import { Body, Title } from './Text';
 
-export type ButtonVariant = 'primary' | 'secondary' | 'tertiary';
+export type ButtonVariant = 'primary' | 'accent' | 'secondary' | 'tertiary';
 export type ButtonSize = 'md' | 'lg';
 
 export interface ButtonProps {
@@ -32,7 +32,7 @@ export interface ButtonProps {
 }
 
 const HEIGHT: Record<ButtonSize, number> = {
-  md: 44,
+  md: 48,
   lg: 56,
 };
 
@@ -42,7 +42,7 @@ export const Button: React.FC<ButtonProps> = ({
   label,
   onPress,
   variant = 'primary',
-  size = 'md',
+  size = 'lg',
   loading = false,
   disabled = false,
   leadingIcon,
@@ -69,37 +69,49 @@ export const Button: React.FC<ButtonProps> = ({
     }).start();
   }, [overlayOpacity]);
 
+  let backgroundColor: string;
+  let pressOverlayColor: string;
+  let labelColor: string;
+  let borderColor: string | undefined;
+
+  switch (variant) {
+    case 'primary':
+      backgroundColor = colors.cta.primary;
+      pressOverlayColor = colors.cta.primaryPressed;
+      labelColor = colors.cta.onPrimary;
+      break;
+    case 'accent':
+      backgroundColor = colors.accent;
+      pressOverlayColor = colors.accentPressed;
+      labelColor = colors.onAccent;
+      break;
+    case 'secondary':
+      backgroundColor = colors.bg.elevated;
+      pressOverlayColor = colors.surfaceMuted;
+      labelColor = colors.ink.primary;
+      borderColor = colors.border;
+      break;
+    case 'tertiary':
+      backgroundColor = 'transparent';
+      pressOverlayColor = colors.surfaceMuted;
+      labelColor = colors.accent;
+      break;
+  }
+
   const baseStyle: ViewStyle = {
     height: HEIGHT[size],
-    borderRadius: radius.input,
+    borderRadius: radius.button,
     paddingHorizontal: spacing.lg,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    opacity: disabled ? 0.5 : 1,
+    opacity: disabled ? 0.4 : 1,
     overflow: 'hidden',
+    backgroundColor,
+    ...(borderColor
+      ? { borderWidth: 1, borderColor }
+      : {}),
   };
-
-  let backgroundColor: string;
-  let pressOverlayColor: string;
-
-  switch (variant) {
-    case 'primary':
-      backgroundColor = colors.accent;
-      pressOverlayColor = colors.accentPressed;
-      break;
-    case 'secondary':
-      backgroundColor = colors.bg.surface;
-      pressOverlayColor = colors.divider;
-      break;
-    case 'tertiary':
-      backgroundColor = 'transparent';
-      pressOverlayColor = colors.divider;
-      break;
-  }
-
-  const labelColorStyle =
-    variant === 'primary' ? styles.primaryLabel : styles.lightLabel;
 
   return (
     <Pressable
@@ -111,7 +123,7 @@ export const Button: React.FC<ButtonProps> = ({
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
       hitSlop={size === 'md' ? 6 : 0}
-      style={[baseStyle, { backgroundColor }, fullWidth && styles.fullWidth]}
+      style={[baseStyle, fullWidth && styles.fullWidth]}
     >
       <Animated.View
         pointerEvents="none"
@@ -121,17 +133,14 @@ export const Button: React.FC<ButtonProps> = ({
         ]}
       />
       {loading ? (
-        <ActivityIndicator
-          size="small"
-          color={variant === 'primary' ? colors.bg.primary : colors.ink.primary}
-        />
+        <ActivityIndicator size="small" color={labelColor} />
       ) : (
         <>
           {leadingIcon ? <View style={styles.icon}>{leadingIcon}</View> : null}
           {size === 'lg' ? (
-            <Title style={labelColorStyle}>{label}</Title>
+            <Title style={[styles.label, { color: labelColor }]}>{label}</Title>
           ) : (
-            <Body style={[styles.mdLabel, labelColorStyle]}>{label}</Body>
+            <Body style={[styles.mdLabel, { color: labelColor }]}>{label}</Body>
           )}
         </>
       )}
@@ -146,13 +155,14 @@ const styles = StyleSheet.create({
   icon: {
     marginRight: spacing.sm,
   },
+  label: {
+    fontWeight: typography.button.fontWeight,
+    letterSpacing: typography.button.letterSpacing,
+  },
   mdLabel: {
-    fontWeight: typography.title.fontWeight,
-  },
-  primaryLabel: {
-    color: colors.bg.primary,
-  },
-  lightLabel: {
-    color: colors.ink.primary,
+    fontWeight: typography.button.fontWeight,
+    letterSpacing: typography.button.letterSpacing,
+    fontSize: typography.button.fontSize,
+    lineHeight: typography.button.lineHeight,
   },
 });

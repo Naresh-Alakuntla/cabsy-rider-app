@@ -25,7 +25,8 @@ export type TextColor =
   | 'tertiary'
   | 'accent'
   | 'success'
-  | 'danger';
+  | 'danger'
+  | 'onAccent';
 
 export interface ThemedTextProps extends RNTextProps {
   color?: TextColor;
@@ -45,6 +46,8 @@ const colorFor = (token: TextColor): string => {
       return colors.success;
     case 'danger':
       return colors.danger;
+    case 'onAccent':
+      return colors.onAccent;
   }
 };
 
@@ -87,6 +90,7 @@ const makeVariant = (
 };
 
 export const Display = makeVariant(toMutable(typography.displayXl));
+export const DisplayLg = makeVariant(toMutable(typography.displayLg));
 export const Heading = makeVariant(toMutable(typography.heading));
 export const Title = makeVariant(toMutable(typography.title));
 export const Body = makeVariant(toMutable(typography.body));
@@ -96,8 +100,8 @@ export const Micro = makeVariant(
   'secondary',
 );
 
-// Price renders monetary values: display-lg, tabular figures, accent by default.
-const PriceBase = makeVariant(toMutable(typography.displayLg), 'accent');
+// Price renders monetary values: display-lg, tabular figures, ink primary by default (Uber style).
+const PriceBase = makeVariant(toMutable(typography.displayLg), 'primary');
 
 // Price wraps the base variant so it can derive a screen-reader-friendly
 // label (e.g. "₹240" → "Rupees 240") and announce as text, not a button.
