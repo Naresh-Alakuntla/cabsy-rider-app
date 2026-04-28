@@ -1,6 +1,8 @@
 apply plugin: "com.android.application"
 apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
+// Reads google-services.json and wires Firebase config into the build.
+apply plugin: "com.google.gms.google-services"
 
 /**
  * This is the configuration block to customize your React Native Android app.
@@ -8,12 +10,13 @@ apply plugin: "com.facebook.react"
  */
 react {
     /* Folders */
-    // npm-workspaces hoists node_modules to the repo root, so RN paths must skip
-    // up two extra levels (apps/<name>/android/app -> repo root).
+    // Standalone repo: node_modules lives at the repo root (../../ from
+    // android/app/). The 4-level monorepo paths from before the split are
+    // gone — they pointed outside the repo and broke the build.
     root = file("../../")
-    reactNativeDir = file("../../../../node_modules/react-native")
-    codegenDir = file("../../../../node_modules/@react-native/codegen")
-    cliFile = file("../../../../node_modules/react-native/cli.js")
+    reactNativeDir = file("../../node_modules/react-native")
+    codegenDir = file("../../node_modules/@react-native/codegen")
+    cliFile = file("../../node_modules/react-native/cli.js")
 
     /* Variants */
     //   The list of variants to that are debuggable. For those we're going to
@@ -55,7 +58,7 @@ react {
 /**
  * Set this to true to Run Proguard on Release builds to minify the Java bytecode.
  */
-def enableProguardInReleaseBuilds = false
+def enableProguardInReleaseBuilds = true
 
 /**
  * The preferred build flavor of JavaScriptCore (JSC)
@@ -92,16 +95,34 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
+        // Production keystore. All four values come from environment
+        // variables so the keystore secrets never land in git. Generate
+        // the .jks once with `keytool -genkey -v -keystore release.keystore
+        // -alias cabsy -keyalg RSA -keysize 2048 -validity 10000`, place
+        // it in android/app/release.keystore, and set:
+        //   ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD
+        // in your CI / local shell before running `./gradlew assembleRelease`.
+        release {
+            def keystorePath = file('release.keystore')
+            if (keystorePath.exists()) {
+                storeFile keystorePath
+                storePassword System.getenv('ANDROID_KEYSTORE_PASSWORD') ?: ''
+                keyAlias System.getenv('ANDROID_KEY_ALIAS') ?: 'cabsy'
+                keyPassword System.getenv('ANDROID_KEY_PASSWORD') ?: ''
+            }
+        }
     }
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
         }
         release {
-            // Caution! In production, you need to generate your own keystore file.
-            // see https://reactnative.dev/docs/signed-apk-android.
-            signingConfig signingConfigs.debug
+            // Use the release signing config when the keystore is present;
+            // fall back to debug signing for local development convenience.
+            // CI MUST set ANDROID_KEYSTORE_PASSWORD / ANDROID_KEY_PASSWORD.
+            signingConfig file('release.keystore').exists() ? signingConfigs.release : signingConfigs.debug
             minifyEnabled enableProguardInReleaseBuilds
+            shrinkResources enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
         }
     }

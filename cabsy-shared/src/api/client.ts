@@ -1,10 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { API_BASE_URL as ENV_API_BASE_URL } from '@env';
 
-// TODO: replace with react-native-config in a polish pass
-// Android emulator users: change to http://10.0.2.2:4000
-export const API_BASE_URL = __DEV__
-  ? 'http://localhost:4000'
-  : 'https://api.cabsy.app';
+// Per master prompt §12: app env vars include API_BASE_URL.
+// Android emulator: set API_BASE_URL=http://10.0.2.2:4000 in .env.
+export const API_BASE_URL = ENV_API_BASE_URL;
 
 const ACCESS_TOKEN_KEY = 'cabsy.accessToken';
 const REFRESH_TOKEN_KEY = 'cabsy.refreshToken';

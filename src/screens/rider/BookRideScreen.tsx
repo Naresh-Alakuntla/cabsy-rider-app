@@ -71,29 +71,6 @@ async function ensureLocationPermission(): Promise<boolean> {
   return result === PermissionsAndroid.RESULTS.GRANTED;
 }
 
-// Haversine distance in km — used only for the local fare estimate label.
-function haversineKm(
-  a: { lat: number; lng: number },
-  b: { lat: number; lng: number },
-): number {
-  const R = 6371;
-  const dLat = ((b.lat - a.lat) * Math.PI) / 180;
-  const dLng = ((b.lng - a.lng) * Math.PI) / 180;
-  const lat1 = (a.lat * Math.PI) / 180;
-  const lat2 = (b.lat * Math.PI) / 180;
-  const h =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
-  return 2 * R * Math.asin(Math.sqrt(h));
-}
-
-function estimateFare(km: number): number {
-  // Lightweight client-side hint only. Server returns the real suggestedFare.
-  const base = 40;
-  const perKm = 14;
-  return Math.max(60, Math.round(base + perKm * km));
-}
-
 interface RecentDrop {
   address: string;
   lat: number;
@@ -200,17 +177,9 @@ export default function BookRideScreen({
     };
   }, [pickupCoord]);
 
-  const buttonLabel = useMemo(() => {
-    if (!pickupCoord || !dropSelection) {
-      return 'Find drivers';
-    }
-    const km = haversineKm(pickupCoord, {
-      lat: dropSelection.lat,
-      lng: dropSelection.lng,
-    });
-    const fare = estimateFare(km);
-    return `Find drivers · ₹${fare}`;
-  }, [pickupCoord, dropSelection]);
+  // Per master prompt §5/§14: never compute distance or fare on the frontend.
+  // The server returns the real suggestedFare after createRide.
+  const buttonLabel = 'Find drivers';
 
   const canSubmit =
     !!pickupCoord &&
@@ -296,10 +265,10 @@ export default function BookRideScreen({
         dropLat: dropSelection.lat,
         dropLng: dropSelection.lng,
         dropAddress: dropSelection.address,
-        distanceKm: haversineKm(pickupCoord, {
-          lat: dropSelection.lat,
-          lng: dropSelection.lng,
-        }),
+        // Backend computes the canonical distance/duration/polyline via Google
+        // Directions during createRide. BidScreen hydrates this from getRide
+        // when it needs the real values.
+        distanceKm: 0,
         durationMinutes: null,
         polyline: null,
         suggestedFare: result.suggestedFare,

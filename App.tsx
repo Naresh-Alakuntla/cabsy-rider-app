@@ -13,23 +13,26 @@ import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 
 import { colors, PushBannerHost } from '@cabsy/shared';
 
+import { ErrorBoundary } from './src/ErrorBoundary';
 import { RootNavigator } from './src/navigation/RootNavigator';
 
 export default function App(): React.JSX.Element {
   return (
-    <GestureHandlerRootView
-      style={{ flex: 1, backgroundColor: colors.bg.primary }}
-    >
-      <SafeAreaProvider>
-        <BottomSheetModalProvider>
-          <StatusBar
-            barStyle="light-content"
-            backgroundColor={colors.bg.primary}
-          />
-          <RootNavigator />
-          <PushBannerHost />
-        </BottomSheetModalProvider>
-      </SafeAreaProvider>
-    </GestureHandlerRootView>
+    <ErrorBoundary>
+      <GestureHandlerRootView
+        style={{ flex: 1, backgroundColor: colors.bg.primary }}
+      >
+        <SafeAreaProvider>
+          <BottomSheetModalProvider>
+            <StatusBar
+              barStyle="light-content"
+              backgroundColor={colors.bg.primary}
+            />
+            <RootNavigator />
+            <PushBannerHost />
+          </BottomSheetModalProvider>
+        </SafeAreaProvider>
+      </GestureHandlerRootView>
+    </ErrorBoundary>
   );
 }

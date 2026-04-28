@@ -5,17 +5,13 @@
 // two endpoints below; the autocomplete + details cycle is small enough to
 // implement directly and keep aligned with the Cabsy design system.
 //
-// API key wiring: for MVP the key is read from the module-level constant
-// below. For production the key MUST be supplied via the build environment
-// (e.g. `react-native-config` reading `GOOGLE_PLACES_API_KEY` from a
-// `.env` file consumed at build time, then exposed here through a setter).
-// Until that wiring lands the placeholder triggers a `PlacesError('NO_KEY')`
-// which the UI catches and renders gracefully.
-//
-// TODO(rn-config): replace this constant with a value sourced from
-// `react-native-config` so each build (debug/staging/prod) can ship its own
-// restricted key without code changes.
-const GOOGLE_PLACES_API_KEY: string = '__SET_VIA_CONFIG__';
+// Per master prompt §12: GOOGLE_MAPS_API_KEY is sourced from the app's
+// .env via react-native-dotenv. The same key serves Places autocomplete +
+// details (this file) and react-native-maps tile loading (configured in
+// the iOS Info.plist / Android AndroidManifest.xml — those need separate
+// build-time injection if you want a single source of truth).
+import { GOOGLE_MAPS_API_KEY } from '@env';
+const GOOGLE_PLACES_API_KEY: string = GOOGLE_MAPS_API_KEY;
 
 const AUTOCOMPLETE_URL =
   'https://maps.googleapis.com/maps/api/place/autocomplete/json';

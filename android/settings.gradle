@@ -1,6 +1,8 @@
-pluginManagement { includeBuild("../../../node_modules/@react-native/gradle-plugin") }
+// Standalone repo: node_modules lives one level up from android/, so
+// gradle-plugin is at ../node_modules/... (was ../../../ in the monorepo).
+pluginManagement { includeBuild("../node_modules/@react-native/gradle-plugin") }
 plugins { id("com.facebook.react.settings") }
 extensions.configure(com.facebook.react.ReactSettingsExtension){ ex -> ex.autolinkLibrariesFromCommand() }
 rootProject.name = 'Cabsy'
 include ':app'
-includeBuild('../../../node_modules/@react-native/gradle-plugin')
+includeBuild('../node_modules/@react-native/gradle-plugin')

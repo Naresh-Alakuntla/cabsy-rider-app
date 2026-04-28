@@ -1,12 +1,9 @@
 import { io, Socket } from 'socket.io-client';
+import { SOCKET_URL } from '@env';
 import { ClientEvents } from '../shared/events';
 
-// TODO: replace dev URL once a stable dev backend host exists.
-// Note: Android emulator cannot reach `localhost` on the host machine.
-// Use `http://10.0.2.2:4000` from an Android emulator instead.
-const DEV_URL = 'http://localhost:4000';
-const PROD_URL = 'https://api.cabsy.app';
-const SOCKET_URL = __DEV__ ? DEV_URL : PROD_URL;
+// Per master prompt §12: app env vars include SOCKET_URL.
+// Android emulator: set SOCKET_URL=http://10.0.2.2:4000 in .env.
 
 export type AckEnvelope<T = unknown> =
   | { ok: true; data?: T }

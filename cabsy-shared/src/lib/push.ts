@@ -1,16 +1,23 @@
-import messaging from '@react-native-firebase/messaging';
+import {
+  getMessaging,
+  getToken,
+  onMessage,
+  onTokenRefresh,
+  requestPermission,
+  AuthorizationStatus,
+} from '@react-native-firebase/messaging';
 import { Platform } from 'react-native';
 import { setFcmToken } from '../api/users';
 import { publishPushMessage } from './pushBanner';
 
-// Request user permission. iOS requires explicit auth; Android 13+ requires
-// POST_NOTIFICATIONS at runtime — RNFirebase handles both via requestPermission.
+// Modular API (firebase-web v9+ style) — required by @react-native-firebase v22+.
+
 async function ensurePermission(): Promise<boolean> {
   try {
-    const status = await messaging().requestPermission();
+    const status = await requestPermission(getMessaging());
     return (
-      status === messaging.AuthorizationStatus.AUTHORIZED ||
-      status === messaging.AuthorizationStatus.PROVISIONAL
+      status === AuthorizationStatus.AUTHORIZED ||
+      status === AuthorizationStatus.PROVISIONAL
     );
   } catch {
     return false;
@@ -30,7 +37,7 @@ export async function registerFCM(): Promise<void> {
   // awaits it internally, but if the bundle ID/entitlements aren't set up the
   // call throws — we catch and continue.
   try {
-    const token = await messaging().getToken();
+    const token = await getToken(getMessaging());
     if (token) {
       await setFcmToken(token).catch((err: unknown) => {
         console.log('[push] failed to register token with backend', err);
@@ -44,7 +51,7 @@ export async function registerFCM(): Promise<void> {
     unsubTokenRefresh();
     unsubTokenRefresh = null;
   }
-  unsubTokenRefresh = messaging().onTokenRefresh((next) => {
+  unsubTokenRefresh = onTokenRefresh(getMessaging(), (next) => {
     void setFcmToken(next).catch(() => undefined);
   });
 
@@ -57,7 +64,7 @@ export async function registerFCM(): Promise<void> {
 
 export function setupForegroundHandler(): () => void {
   // Foreground FCM messages are surfaced via the in-app banner bus (PushBannerHost).
-  const unsub = messaging().onMessage(async (msg) => {
+  const unsub = onMessage(getMessaging(), async (msg) => {
     const title = msg.notification?.title;
     const body = msg.notification?.body;
     if (title && body) {

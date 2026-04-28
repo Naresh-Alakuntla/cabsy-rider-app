@@ -31,7 +31,8 @@ function normalizeToE164(raw: string): string | null {
 export default function LoginPhoneScreen({
   navigation,
 }: Props): React.JSX.Element {
-  const [phone, setPhone] = useState('');
+  // Default to +91 (India) so the user only types the local number.
+  const [phone, setPhone] = useState('+91 ');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
